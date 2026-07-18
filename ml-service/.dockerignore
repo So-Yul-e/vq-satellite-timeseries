@@ -1,0 +1,17 @@
+.env
+.env.*
+gee-service-account.json
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+node_modules/
+.git/
+.gitignore
+*.log
+uploads/
+models/*.pt
+models/*.pth

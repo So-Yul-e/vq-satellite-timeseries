@@ -1,0 +1,171 @@
+services:
+  postgres:
+    image: postgis/postgis:15-3.4-alpine
+    container_name: vq-satellite-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: vq-satellite-redis
+    ports:
+      - "127.0.0.1:56379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vq-satellite-backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-noreply@vq-satellite.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_SERVER: ${MAIL_SERVER:-smtp.gmail.com}
+      SOLAR_PERMIT_API_KEY: ${SOLAR_PERMIT_API_KEY}
+      SOLAR_PERMIT_API_URL: ${SOLAR_PERMIT_API_URL}
+      FOREST_MOUNTAIN_API_KEY: ${FOREST_MOUNTAIN_API_KEY:-}
+      VWORLD_API_KEY: ${VWORLD_API_KEY:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./ml-service:/app/ml_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: vq-satellite-ml
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      MODEL_PATH: /app/models
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./ml-service:/app
+      - ./uploads:/app/uploads
+      - ./models:/app/models
+      - ./backend/gee-service-account.json:/app/gee-service-account.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vq-satellite-celery
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      SOLAR_PERMIT_API_KEY: ${SOLAR_PERMIT_API_KEY}
+      SOLAR_PERMIT_API_URL: ${SOLAR_PERMIT_API_URL}
+      FOREST_MOUNTAIN_API_KEY: ${FOREST_MOUNTAIN_API_KEY:-}
+      # VQ 위치 분석의 YOLO 태양광 교차참조가 celery-worker에서 VWorld 고해상을 받아야 함
+      VWORLD_API_KEY: ${VWORLD_API_KEY:-}
+      VWORLD_REQUEST_DOMAIN: ${VWORLD_REQUEST_DOMAIN:-localhost}
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./ml-service:/app/ml_service
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A app.core.celery_app worker --loglevel=info
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vq-satellite-celery-beat
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      SOLAR_PERMIT_API_KEY: ${SOLAR_PERMIT_API_KEY}
+      SOLAR_PERMIT_API_URL: ${SOLAR_PERMIT_API_URL}
+      FOREST_MOUNTAIN_API_KEY: ${FOREST_MOUNTAIN_API_KEY:-}
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./ml-service:/app/ml_service
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A app.core.celery_app beat --loglevel=info
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vq-satellite-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports:
+      - "127.0.0.1:3002:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: vq-satellite-admin
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./admin:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:

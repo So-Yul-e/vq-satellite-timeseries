@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Node.js
+node_modules/
+.next/
+out/
+.nuxt/
+.cache/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+
+# ML Models
+*.pth
+*.h5
+*.ckpt
+ml-service/models/
+checkpoints/
+/models/
+
+# Data
+data/
+uploads/
+temp/
+docs/*.csv
+
+# Claude Code
+.claude/
+
+# Google Earth Engine (보안 중요!)
+backend/gee-service-account.json
+**/gee-service-account.json
+
+*.tsbuildinfo
+
+# ML weights (다운로드 스크립트로 확보)
+*.pt
+backend/models/*.pth
+
+# 견고성 감사 리포트(로컬 전용, bughunt 스킬) — 산출물만 커밋
+docs/robustness/
+
+# celery-beat 스케줄 상태 파일(런타임 생성)
+celerybeat-schedule
+backend/celerybeat-schedule
+
+# gstack 로컬 산출물(보안 리포트 등)
+.gstack/

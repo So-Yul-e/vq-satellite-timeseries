@@ -1,0 +1,12 @@
+-- 데이터 백업 후 아래 주석을 해제하고 수동 실행할 것.
+--
+-- 구 허가 매칭 시스템(Permit/permits, panel_permits) 테이블 삭제.
+-- VERSION.md 2026-07-11 결정: 허가 매칭은 SolarPermit(solar_permits) 단일 canonical.
+-- 이 마이그레이션은 커밋 시점에는 자동 실행되지 않도록 전부 주석 처리된 상태로 유지한다.
+--
+-- 실행 전 체크리스트:
+--   1. permits, panel_permits 테이블 데이터를 백업(pg_dump 등)했는지 확인
+--   2. 코드베이스에 Permit 모델/PermitMatchingService 참조가 완전히 제거되었는지 확인
+--
+-- DROP TABLE IF EXISTS panel_permits CASCADE;
+-- DROP TABLE IF EXISTS permits CASCADE;
