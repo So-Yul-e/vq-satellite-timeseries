@@ -32,10 +32,21 @@ class TestRiskAssessmentSystem:
 
     @pytest.fixture(scope="class")
     def db_session(self):
-        """테스트 데이터베이스 세션"""
-        # 테스트용 인메모리 DB 사용 (또는 실제 DB 연결)
-        from app.core.config import settings
-        engine = create_engine(settings.DATABASE_URL)
+        """테스트 데이터베이스 세션 (전용 테스트 DB 필수)
+
+        teardown이 Base.metadata.drop_all — 즉 스키마 전체 드랍이다.
+        예전처럼 settings.DATABASE_URL(공유 dev DB)로 연결하면 완주 시
+        실데이터가 전부 날아간다(2026-07-18 근접 사고: 라이브 앱의 락 경합
+        덕에 드랍이 영원히 대기해 우연히 살아남음). 그래서 전용 일회용
+        DB(TEST_DATABASE_URL)가 없으면 skip한다.
+        """
+        url = os.environ.get("TEST_DATABASE_URL")
+        if not url:
+            pytest.skip(
+                "전용 테스트 DB가 필요합니다 (TEST_DATABASE_URL 설정 — "
+                "test_panel_permit_matching.py docstring의 postgis 컨테이너 절차 참조)"
+            )
+        engine = create_engine(url)
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
         # 테이블 생성
@@ -45,7 +56,10 @@ class TestRiskAssessmentSystem:
         yield session
 
         session.close()
-        Base.metadata.drop_all(bind=engine)
+        # drop_all teardown은 제거: 마이그레이션이 만든 의존 객체(뷰 등) 때문에
+        # DependentObjectsStillExist로 실패하고, 전용 일회용 DB 계약(컨테이너째
+        # 버림)에서는 스키마 드랍이 애초에 불필요하다.
+        engine.dispose()
 
     def test_dem_service_slope_calculation(self):
         """DEM 서비스: 경사도 계산 테스트"""

@@ -40,15 +40,13 @@ from app.services.panel_permit_matching_service import PanelPermitMatchingServic
 
 
 def _resolve_test_database_url():
-    """TEST_DATABASE_URL이 있으면 우선 사용, 없으면 settings.DATABASE_URL 사용."""
-    url = os.environ.get("TEST_DATABASE_URL")
-    if url:
-        return url
-    try:
-        from app.core.config import settings
-        return settings.DATABASE_URL
-    except Exception:
-        return None
+    """전용 테스트 DB(TEST_DATABASE_URL)만 사용한다.
+
+    settings.DATABASE_URL 폴백은 의도적으로 제거 — 개발 공유 DB에 테스트
+    행이 쌓이고, 같은 폴백을 쓰던 test_risk_assessment의 drop_all teardown과
+    조합되면 실데이터 전체가 드랍될 수 있었다(2026-07-18 실제 근접 사고).
+    """
+    return os.environ.get("TEST_DATABASE_URL")
 
 
 def _postgis_available(url: str) -> bool:
@@ -69,7 +67,7 @@ _HAS_POSTGIS = _postgis_available(_TEST_DB_URL)
 
 pytestmark = pytest.mark.skipif(
     not _HAS_POSTGIS,
-    reason="PostGIS가 활성화된 PostgreSQL 연결이 필요합니다 (TEST_DATABASE_URL 또는 DATABASE_URL 확인)",
+    reason="전용 테스트 DB가 필요합니다 (TEST_DATABASE_URL 설정 — 모듈 docstring의 postgis 컨테이너 절차 참조)",
 )
 
 
